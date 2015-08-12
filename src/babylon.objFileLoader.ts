@@ -7,14 +7,27 @@ module BABYLON {
      */
     export class MTLFileLoader {
 
-        // All material loaded from the mtl
+        // All material loaded from the mtl will be set here
         public materials : BABYLON.StandardMaterial[] = [];
 
+        /**
+         * This function will read the mtl file and create each material described inside
+         * This function could be improve by adding :
+         * -some component missing (Ni, Tf...)
+         * -including the specific options available
+         *
+         * @param scene
+         * @param data
+         * @param rootUrl
+         */
         public parseMTL = function(scene:BABYLON.Scene, data:string, rootUrl:string) {
             //Split the lines from the file
             var lines = data.split('\n');
+            //Space char
             var delimiter_pattern = /\s+/;
+            //Array with RGB colors
             var color : number[];
+            //New material
             var material : BABYLON.StandardMaterial;
 
             //Look at each line
@@ -36,30 +49,47 @@ module BABYLON {
                 var value : any = (pos >= 0) ? line.substring(pos + 1) : "";
                 value = value.trim();
 
-                //Create the new material
+                //This mtl keyword will create the new material
                 if (key === "newmtl") {
-                    //Add the previous material in an array
+                    //Check if it is the first material.
+                    // Materials specifications are described after this keyword.
                     if (material){
+                        //Add the previous material in the material array.
                         this.materials.push(material);
                     }
-                    //Create a new material
+                    //Create a new material.
+                    // value is the name of the material read in the mtl file
                     material = new BABYLON.StandardMaterial(value, scene);
                 } else if (key === "kd") {
                     // Diffuse color (color under white light) using RGB values
+
+                    //value  = "r g b"
                     color = <number[]> value.split(delimiter_pattern, 3);
+                    //color = [r,g,b]
+                    //Set tghe color into the material
                     material.diffuseColor = BABYLON.Color3.FromArray(color);
                 } else if (key === "ka") {
                     // Ambient color (color under shadow) using RGB values
+
+                    //value = "r g b"
                     color = <number[]> value.split(delimiter_pattern, 3);
+                    //color = [r,g,b]
+                    //Set tghe color into the material
                     material.ambientColor = BABYLON.Color3.FromArray(color);
                 } else if (key === "ks") {
                     // Specular color (color when light is reflected from shiny surface) using RGB values
+
+                    //value = "r g b"
                     color = <number[]> value.split(delimiter_pattern, 3);
+                    //color = [r,g,b]
+                    //Set the color into the material
                     material.specularColor = BABYLON.Color3.FromArray(color);
                 } else if (key === "ns") {
+
+                    //value = "Integer"
                     material.specularPower = value;
                 } else if (key === "d") {
-                    //d is dissolve for current material
+                    //d is dissolve for current material. It mean alpha for BABYLON
                     material.alpha = value;
 
                     //Texture
@@ -76,12 +106,15 @@ module BABYLON {
                     //We must first get the folder of the image
                     material.specularTexture = new BABYLON.Texture(rootUrl + value, scene);
                 } else if (key === "map_ns") {
-                    //    //Specular
-                    //    //Specular highlight component
-                    //    //We must first get the folder of the image
-
+                    //Specular
+                    //Specular highlight component
+                    //We must first get the folder of the image
+                    //
+                    //Not supported by BABYLON
+                    //
                     //    continue;
                 } else if (key === "map_bump") {
+                    //The bump texture
                     material.bumpTexture = new BABYLON.Texture(rootUrl + value, scene);
                 } else if (key === "map_d") {
                     // The dissolve of the material
@@ -118,7 +151,7 @@ module BABYLON {
                     // console.log("Unhandled expression at line : " + i +'\n' + "with value : " + line);
                 }
             }
-            //Add the last material
+            //At the end of the file, add the last material
             this.materials.push(material);
         }
     }
@@ -148,22 +181,32 @@ module BABYLON {
 
         /**
          * Calls synchronously the MTL file attached to this obj.
+         * Load function or importMesh function don't enable to load 2 files in the same time asynchronously.
+         * Without this function materials are not displayed in the first frame (but displayed after).
+         * In consequence it is impossible to get material information in your HTML file
+         *
          * @param url The URL of the MTL file
          * @param rootUrl
          * @param onSuccess Callback function to be called when the MTL file is loaded
          * @private
          */
         private _loadMTL(url:string, rootUrl:string,  onSuccess:(response:string) => any) {
+            //XMLHTTP object to load the file
             var request = new XMLHttpRequest();
-            var loadUrl = BABYLON.Tools.BaseUrl+ rootUrl + url;
-            request.open('GET', loadUrl, false);
+            //The complete path to the mtl file
+            var pathOfFile = BABYLON.Tools.BaseUrl+ rootUrl + url;
+            //Get the file synchronously
+            request.open('GET', pathOfFile, false);
+            //Check the server status
             request.onreadystatechange = function () {
                 if (request.readyState === 4) {
                     if (request.status === 200 || BABYLON.Tools.ValidateXHRData(request, 1)) {
+                        //Data are loaded
                         onSuccess(request.responseText);
                     }
                     else {
-                        console.warn("Error status: " + request.status + " - Unable to load " + loadUrl);
+                        //File not found
+                        console.warn("Error status: " + request.status + " - Unable to load " + pathOfFile);
                     }
                 }
             };
@@ -171,10 +214,12 @@ module BABYLON {
         }
 
         public importMesh(meshesNames: any, scene: Scene, data: any, rootUrl: string, meshes: AbstractMesh[], particleSystems: ParticleSystem[], skeletons: Skeleton[]): boolean {
+            //get the meshes from OBJ file
             var mm = this._parseSolid(meshesNames, scene, data, rootUrl);
+            //Push each mesh from OBJ file into the variable mesh of this function
             mm.forEach((m) => {
                 meshes.push(m);
-            })
+            });
             return true;
         }
 
@@ -184,12 +229,15 @@ module BABYLON {
         }
 
         /**
-         * Set the data corresponding to each mesh in a scene.
+         * Read the OBJ file and create an Array of meshes.
+         * Each mesh contains all information given by the OBJ and the MTL file.
+         * i.e. vertices positions and indices, optional normals values, optional UV values, optional material
+         *
          * @param meshesNames
          * @param scene BABYLON.Scene The scene where are displayed the data
          * @param data String The content of the obj file
          * @param rootUrl String The path to the folder
-         * @returns {boolean}
+         * @returns Array<AbstractMesh>
          * @private
          */
         private _parseSolid(meshesNames: any, scene:BABYLON.Scene, data:string, rootUrl:string): Array<AbstractMesh> {
@@ -197,8 +245,8 @@ module BABYLON {
             var positions           : Array<BABYLON.Vector3>    = [];      //values for the positions of vertices
             var normals             : Array<BABYLON.Vector3>    = [];      //Values for the normals
             var uvs                 : Array<BABYLON.Vector2>    = [];      //Values for the textures
-            var meshes              : Array<any>             = [];      //[mesh] Contains all the obj meshes
-            var currentMesh         : any                        ;      //The current mesh of meshes array
+            var meshes              : Array<any>                = [];      //[mesh] Contains all the obj meshes
+            var currentMesh         : any                           ;      //The current mesh of meshes array
             var indicesForBabylon   : Array<number>             = [];      //The list of indices for VertexData
             var positionsForBabylon : Array<BABYLON.Vector3>    = [];      //The list of position in vectors
             var uvsForBabylon       : Array<BABYLON.Vector2>    = [];      //Array with all value of uvs to match with the indices
@@ -216,24 +264,29 @@ module BABYLON {
 
             /**
              * Search for obj in the given array.
-             * If found, returns its index. Returns -1 if not found
+             * This function is called to check if a couple of data already exists in an array.
+             *
+             * If found, returns the index of the founded tuple index. Returns -1 if not found
              * @param arr Array<BABYLON.Vector2>
              * @param obj BABYLON.Vector2
              * @returns {number}
              */
             var isInArray = (arr: Array<BABYLON.Vector2>, obj: BABYLON.Vector2) => {
+                //Default value : not found
                 var res = -1;
-                for (var aa = 0; aa<arr.length; aa++) {
-                    var v2 = arr[aa];
-                    if (v2.x === obj.x && v2.y === obj.y){
-                        res = aa;
+                for (var i = 0; i<arr.length; i++) {
+                    var element = arr[i];
+                    //Comparison of each element of the tuple
+                    if (element.x === obj.x && element.y === obj.y){
+                        res = i;
                     }
                 }
+                //Return the indice of the founded element
                 return res;
             };
 
             /**
-             * Push the values of position, normals, uv and indices if needed
+             * This
              * Push a new indice otherwise
              * @param objIndice Integer The index in positions array
              * @param objNormale Integer The index in normals array
