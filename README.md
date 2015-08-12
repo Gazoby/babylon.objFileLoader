@@ -1,6 +1,6 @@
 # Babylon.js .obj File Loader
 
-#[http://www.babylonjs-playground.com/#28YUR5]Demo
+#[Demo](http://www.babylonjs-playground.com/#28YUR5)
 To use it, you just have to reference the loader file:
 
 ```
