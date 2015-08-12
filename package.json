@@ -1,0 +1,9 @@
+{
+  "name": "babylon-objloader",
+  "version": "1.0.0",
+  
+  "devDependencies" : {
+    "typescript" : "~1.4.1",
+    "grunt-ts" : "latest"
+  }
+}
